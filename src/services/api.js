@@ -20,10 +20,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Rediriger vers login SEULEMENT si on est sur une page admin
     if (error.response?.status === 401) {
-      localStorage.removeItem('lpr_token');
-      localStorage.removeItem('lpr_user');
-      window.location.href = '/admin/login';
+      const isAdminPage = window.location.pathname.startsWith('/admin');
+      if (isAdminPage) {
+        localStorage.removeItem('lpr_token');
+        localStorage.removeItem('lpr_user');
+        window.location.href = '/admin/login';
+      }
     }
     return Promise.reject(error);
   }
