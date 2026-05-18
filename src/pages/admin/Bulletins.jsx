@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import AdminLayout from '../../components/layout/AdminLayout';
-import Badge from '../../components/ui/Badge';
 import api from '../../services/api';
-import { Search, FileText, Download, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Search, FileText, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
 
 const Bulletins = () => {
   const [classes, setClasses]     = useState([]);

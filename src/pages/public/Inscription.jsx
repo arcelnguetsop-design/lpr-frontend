@@ -396,7 +396,7 @@ const Inscription = () => {
                   </div>
                   {photoPreview && (
                     <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
-                      <img src={photoPreview} alt="photo" className="w-12 h-14 object-cover rounded-lg"/>
+                      <img src={photoPreview} alt="apercu" className="w-12 h-14 object-cover rounded-lg"/>
                       <p className="text-sm text-gray-600">Photo ajoutée ✓</p>
                     </div>
                   )}

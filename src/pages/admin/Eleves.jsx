@@ -7,7 +7,7 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import { STATUTS_ELEVE, STATUTS_PAIEMENT } from '../../utils/constants';
 import {
-  Search, Filter, Download, FileText,
+  Search, Download, FileText,
   Eye, CheckCircle, XCircle, ChevronLeft, ChevronRight
 } from 'lucide-react';
 

@@ -134,7 +134,7 @@ const Notes = () => {
     }
   };
 
-  useEffect(() => { fetchEvaluations(); }, [filters]);
+  useEffect(() => { fetchEvaluations(); }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreateEval = async () => {
     if (!form.libelle) { toast.error('Le libellé est obligatoire'); return; }

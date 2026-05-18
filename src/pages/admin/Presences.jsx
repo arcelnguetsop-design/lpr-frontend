@@ -3,8 +3,8 @@ import { toast } from 'react-toastify';
 import AdminLayout from '../../components/layout/AdminLayout';
 import api from '../../services/api';
 import {
-  Search, Filter, ChevronDown, ChevronUp,
-  Calendar, Users, CheckCircle, XCircle, Clock
+   Filter, ChevronDown, ChevronUp,
+  Calendar, CheckCircle, XCircle, Clock
 } from 'lucide-react';
 
 const Presences = () => {
@@ -23,9 +23,7 @@ const Presences = () => {
   });
   const [total, setTotal] = useState(0);
 
-  useEffect(() => {
-    api.get('/classes').then(r => setClasses(r.data.classes)).catch(console.error);
-  }, []);
+ useEffect(() => { fetchAppels(); }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchAppels = async () => {
     setLoading(true);

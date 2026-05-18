@@ -4,8 +4,7 @@ import { anneeScolaireService } from '../../services/anneeScolaireService';
 import AdminLayout from '../../components/layout/AdminLayout';
 import Button from '../../components/ui/Button';
 import {
-  CalendarDays, Plus, CheckCircle, Users,
-  BookOpen, Clock, X, AlertTriangle
+  CalendarDays, Plus, CheckCircle, Users, Clock, X, AlertTriangle
 } from 'lucide-react';
 
 const AnneesScolaires = () => {

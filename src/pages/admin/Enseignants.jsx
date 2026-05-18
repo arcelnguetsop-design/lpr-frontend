@@ -39,7 +39,7 @@ const Enseignants = () => {
     }
   };
 
-  useEffect(() => { fetchEnseignants(); }, [statut]);
+  useEffect(() => { fetchEnseignants(); }, [statut]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStatut = async (id, newStatut) => {
     setActionId(id);

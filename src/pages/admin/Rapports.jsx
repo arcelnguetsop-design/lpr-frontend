@@ -4,7 +4,7 @@ import AdminLayout from '../../components/layout/AdminLayout';
 import api from '../../services/api';
 import {
   BarChart3, Users, UserCheck, CreditCard,
-  TrendingUp, BookOpen, Download, Calendar
+  TrendingUp, BookOpen, Download
 } from 'lucide-react';
 
 const StatBox = ({ title, value, subtitle, color, bg, icon: Icon }) => (
