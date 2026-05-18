@@ -9,7 +9,7 @@ import {
 
 const Presences = () => {
   const [appels, setAppels]     = useState([]);
-  const [classes, setClasses]   = useState([]);
+  const [classes] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [detail, setDetail]     = useState(null);
@@ -40,7 +40,7 @@ const Presences = () => {
     }
   };
 
-  useEffect(() => { fetchAppels(); }, [filters]);
+  useEffect(() => { fetchAppels(); }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleExpand = async (appel) => {
     if (expanded === appel.id) {

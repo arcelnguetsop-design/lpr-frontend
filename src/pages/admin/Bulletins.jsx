@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import AdminLayout from '../../components/layout/AdminLayout';
 import api from '../../services/api';
-import { Search, FileText, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
+import { Search, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 
 const Bulletins = () => {
   const [classes, setClasses]     = useState([]);
