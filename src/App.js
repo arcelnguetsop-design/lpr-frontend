@@ -77,9 +77,9 @@ function App() {
         }/>
 
 {/* ── Redirections ── */}
-<Route path="/admin" element={<Navigate to="/admin/dashboard" replace/>}/>
-<Route path="/"      element={<Navigate to="/inscription"     replace/>}/>
-<Route path="*"      element={<Navigate to="/inscription"     replace/>}/>
+<Route path="/"          element={<Navigate to="/inscription" replace/>}/>
+<Route path="/admin"     element={<Navigate to="/admin/dashboard" replace/>}/>
+<Route path="*"          element={<Navigate to="/inscription" replace/>}/>
       </Routes>
     </BrowserRouter>
   );
