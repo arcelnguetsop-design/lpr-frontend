@@ -76,11 +76,10 @@ function App() {
           <PrivateRoute><Rapports/></PrivateRoute>
         }/>
 
-      {/* ── Redirections ── */}
+{/* ── Redirections ── */}
 <Route path="/admin" element={<Navigate to="/admin/dashboard" replace/>}/>
 <Route path="/"      element={<Navigate to="/inscription"     replace/>}/>
-<Route path="*"      element={<Navigate to="/admin/login"     replace/>}/>
-
+<Route path="*"      element={<Navigate to="/inscription"     replace/>}/>
       </Routes>
     </BrowserRouter>
   );
