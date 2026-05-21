@@ -10,8 +10,7 @@ import {
 
 const NIVEAUX = [
   'Terminale', 'Première', 'Seconde',
-  'Troisième', 'Quatrième', 'Cinquième',
-  'Sixième'
+  'Troisième', 'Quatrième', 'Cinquième', 'Sixième'
 ];
 
 const EXAMENS = [
@@ -20,22 +19,19 @@ const EXAMENS = [
 ];
 
 const Classes = () => {
-  const [classes, setClasses]         = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [showModal, setShowModal]     = useState(false);
+  const [classes, setClasses]           = useState([]);
+  const [enseignants, setEnseignants]   = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [showModal, setShowModal]       = useState(false);
   const [showMatieres, setShowMatieres] = useState(null);
-  const [editing, setEditing]         = useState(null);
-  const [saving, setSaving]           = useState(false);
-  const [deletingId, setDeletingId]   = useState(null);
+  const [editing, setEditing]           = useState(null);
+  const [saving, setSaving]             = useState(false);
+  const [deletingId, setDeletingId]     = useState(null);
 
-  // Formulaire classe
-  const [form, setForm] = useState({
-    nom: '', niveau: '', examen_prepare: ''
-  });
+  const [form, setForm] = useState({ nom: '', niveau: '', examen_prepare: '' });
 
-  // Formulaire matière
-  const [matiereForm, setMatiereForm] = useState({ nom: '', coefficient: 1 });
-  const [matieres, setMatieres]       = useState([]);
+  const [matiereForm, setMatiereForm]     = useState({ nom: '', coefficient: 1, type: 'obligatoire', enseignant_id: '' });
+  const [matieres, setMatieres]           = useState([]);
   const [savingMatiere, setSavingMatiere] = useState(false);
 
   const fetchClasses = async () => {
@@ -50,7 +46,19 @@ const Classes = () => {
     }
   };
 
-  useEffect(() => { fetchClasses(); }, []);
+  const fetchEnseignants = async () => {
+    try {
+      const res = await api.get('/enseignants');
+      setEnseignants(res.data.enseignants || []);
+    } catch {
+      // silencieux
+    }
+  };
+
+  useEffect(() => {
+    fetchClasses();
+    fetchEnseignants();
+  }, []);
 
   const fetchMatieres = async (classeId) => {
     try {
@@ -73,11 +81,7 @@ const Classes = () => {
   const handleOpenModal = (classe = null) => {
     if (classe) {
       setEditing(classe);
-      setForm({
-        nom             : classe.nom,
-        niveau          : classe.niveau,
-        examen_prepare  : classe.examen_prepare || '',
-      });
+      setForm({ nom: classe.nom, niveau: classe.niveau, examen_prepare: classe.examen_prepare || '' });
     } else {
       setEditing(null);
       setForm({ nom: '', niveau: '', examen_prepare: '' });
@@ -130,12 +134,14 @@ const Classes = () => {
     setSavingMatiere(true);
     try {
       await api.post('/classes/matieres', {
-        nom         : matiereForm.nom,
-        coefficient : parseInt(matiereForm.coefficient),
-        classe_id   : classeId,
+        nom          : matiereForm.nom,
+        coefficient  : parseInt(matiereForm.coefficient),
+        classe_id    : classeId,
+        type         : matiereForm.type,
+        enseignant_id: matiereForm.enseignant_id || null,
       });
       toast.success('Matière ajoutée');
-      setMatiereForm({ nom: '', coefficient: 1 });
+      setMatiereForm({ nom: '', coefficient: 1, type: 'obligatoire', enseignant_id: '' });
       await fetchMatieres(classeId);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erreur ajout matière');
@@ -155,7 +161,6 @@ const Classes = () => {
     }
   };
 
-  // Grouper les classes par niveau
   const classesByNiveau = classes.reduce((acc, cls) => {
     const niveau = cls.niveau || 'Autres';
     if (!acc[niveau]) acc[niveau] = [];
@@ -188,6 +193,7 @@ const Classes = () => {
               <p className="font-medium">Comment gérer les classes ?</p>
               <p>• Créez d'abord les classes (Terminale C, Terminale D, 3ème...)</p>
               <p>• Ensuite cliquez sur une classe pour ajouter ses matières et coefficients</p>
+              <p>• Définissez si chaque matière est <strong>obligatoire</strong> ou <strong>optionnelle</strong></p>
               <p>• Les matières apparaîtront automatiquement dans l'app mobile des enseignants</p>
             </div>
           </div>
@@ -285,8 +291,20 @@ const Classes = () => {
                                 {matieres.map((mat) => (
                                   <div key={mat.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
                                     <div>
-                                      <p className="text-sm font-medium text-gray-700">{mat.nom}</p>
-                                      <p className="text-xs text-gray-400">Coefficient : {mat.coefficient}</p>
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm font-medium text-gray-700">{mat.nom}</p>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                          mat.type === 'obligatoire'
+                                            ? 'bg-blue-50 text-blue-600'
+                                            : 'bg-orange-50 text-orange-600'
+                                        }`}>
+                                          {mat.type === 'obligatoire' ? 'Obligatoire' : 'Optionnel'}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-gray-400 mt-0.5">
+                                        Coef. {mat.coefficient}
+                                        {mat.enseignant_nom && ` • ${mat.enseignant_nom} ${mat.enseignant_prenom || ''}`}
+                                      </p>
                                     </div>
                                     <button
                                       onClick={() => handleDeleteMatiere(mat.id, classe.id)}
@@ -305,32 +323,59 @@ const Classes = () => {
                             <p className="text-xs font-medium text-gray-600 mb-2">
                               Ajouter une matière
                             </p>
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                placeholder="Nom de la matière"
-                                value={matiereForm.nom}
-                                onChange={(e) => setMatiereForm(f => ({ ...f, nom: e.target.value }))}
-                                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs text-gray-500 whitespace-nowrap">Coef.</span>
+                            <div className="space-y-2">
+                              {/* Ligne 1 : nom + coef */}
+                              <div className="flex gap-2">
                                 <input
-                                  type="number"
-                                  min="1"
-                                  max="9"
-                                  value={matiereForm.coefficient}
-                                  onChange={(e) => setMatiereForm(f => ({ ...f, coefficient: e.target.value }))}
-                                  className="w-14 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  type="text"
+                                  placeholder="Nom de la matière"
+                                  value={matiereForm.nom}
+                                  onChange={(e) => setMatiereForm(f => ({ ...f, nom: e.target.value }))}
+                                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-gray-500 whitespace-nowrap">Coef.</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="9"
+                                    value={matiereForm.coefficient}
+                                    onChange={(e) => setMatiereForm(f => ({ ...f, coefficient: e.target.value }))}
+                                    className="w-14 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  />
+                                </div>
                               </div>
-                              <Button
-                                size="sm"
-                                loading={savingMatiere}
-                                onClick={() => handleAddMatiere(classe.id)}
-                              >
-                                <Plus size={14}/>
-                              </Button>
+
+                              {/* Ligne 2 : type + enseignant */}
+                              <div className="flex gap-2">
+                                <select
+                                  value={matiereForm.type}
+                                  onChange={(e) => setMatiereForm(f => ({ ...f, type: e.target.value }))}
+                                  className="w-36 px-2 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="obligatoire">Obligatoire</option>
+                                  <option value="optionnel">Optionnel</option>
+                                </select>
+                                <select
+                                  value={matiereForm.enseignant_id}
+                                  onChange={(e) => setMatiereForm(f => ({ ...f, enseignant_id: e.target.value }))}
+                                  className="flex-1 px-2 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="">Enseignant (optionnel)</option>
+                                  {enseignants.map(ens => (
+                                    <option key={ens.id} value={ens.id}>
+                                      {ens.nom} {ens.prenom}
+                                    </option>
+                                  ))}
+                                </select>
+                                <Button
+                                  size="sm"
+                                  loading={savingMatiere}
+                                  onClick={() => handleAddMatiere(classe.id)}
+                                >
+                                  <Plus size={14}/>
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -343,7 +388,7 @@ const Classes = () => {
           </div>
         )}
 
-        {/* ── MODAL CRÉER/MODIFIER CLASSE ── */}
+        {/* MODAL CRÉER/MODIFIER CLASSE */}
         {showModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
@@ -357,7 +402,6 @@ const Classes = () => {
               </div>
 
               <div className="p-5 space-y-4">
-                {/* Nom */}
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1.5">
                     Nom de la classe <span className="text-red-500">*</span>
@@ -371,7 +415,6 @@ const Classes = () => {
                   />
                 </div>
 
-                {/* Niveau */}
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1.5">
                     Niveau <span className="text-red-500">*</span>
@@ -388,7 +431,6 @@ const Classes = () => {
                   </select>
                 </div>
 
-                {/* Examen */}
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1.5">
                     Examen préparé

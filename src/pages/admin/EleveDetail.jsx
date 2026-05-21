@@ -6,9 +6,10 @@ import AdminLayout from '../../components/layout/AdminLayout';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import { STATUTS_ELEVE, STATUTS_PAIEMENT } from '../../utils/constants';
+import api from '../../services/api';
 import {
   ArrowLeft, FileText, CheckCircle, XCircle,
-  Phone, Mail, MapPin, School, User, Users
+  Phone, Mail, MapPin, School, User, Users, BookOpen, Save
 } from 'lucide-react';
 
 const InfoRow = ({ icon: Icon, label, value }) => (
@@ -36,16 +37,75 @@ const SectionCard = ({ title, icon: Icon, children }) => (
 const EleveDetail = () => {
   const { id }     = useParams();
   const navigate   = useNavigate();
-  const [eleve, setEleve]     = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
+  const [eleve, setEleve]         = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [updating, setUpdating]   = useState(false);
+
+  // Matières
+  const [classeMatieres, setClasseMatieres]   = useState([]);
+  const [, setEleveMatieres] = useState([]);
+  const [selectedMatieres, setSelectedMatieres] = useState([]);
+  const [savingMatieres, setSavingMatieres]   = useState(false);
+  const [loadingMatieres, setLoadingMatieres] = useState(false);
 
   useEffect(() => {
     eleveService.getById(id)
-      .then(data => setEleve(data.eleve))
+      .then(data => {
+        setEleve(data.eleve);
+        // Charger les matières de la classe et celles de l'élève
+        if (data.eleve?.classe_id) {
+          fetchClasseMatieres(data.eleve.classe_id);
+        }
+        fetchEleveMatieres();
+      })
       .catch(() => toast.error('Élève introuvable'))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const fetchClasseMatieres = async (classeId) => {
+    try {
+      const res = await api.get(`/classes/${classeId}/matieres`);
+      setClasseMatieres(res.data.matieres || []);
+    } catch {
+      // silencieux
+    }
+  };
+
+  const fetchEleveMatieres = async () => {
+    setLoadingMatieres(true);
+    try {
+      const res = await api.get(`/eleves/${id}/matieres`);
+      const matieres = res.data.matieres || [];
+      setEleveMatieres(matieres);
+      setSelectedMatieres(matieres.map(m => m.id));
+    } catch {
+      // silencieux
+    } finally {
+      setLoadingMatieres(false);
+    }
+  };
+
+  const handleToggleMatiere = (matiereId) => {
+    setSelectedMatieres(prev =>
+      prev.includes(matiereId)
+        ? prev.filter(id => id !== matiereId)
+        : [...prev, matiereId]
+    );
+  };
+
+  const handleSaveMatieres = async () => {
+    setSavingMatieres(true);
+    try {
+      await api.post(`/eleves/${id}/matieres`, { matiere_ids: selectedMatieres });
+      toast.success('Matières assignées avec succès');
+      await fetchEleveMatieres();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Erreur assignation matières');
+    } finally {
+      setSavingMatieres(false);
+    }
+  };
 
   const handleStatut = async (newStatut) => {
     setUpdating(true);
@@ -75,6 +135,10 @@ const EleveDetail = () => {
       day: '2-digit', month: 'long', year: 'numeric'
     });
   };
+
+  // Séparer obligatoires et optionnelles
+  const matieresobligatoires = classeMatieres.filter(m => m.type === 'obligatoire');
+  const matieresOptionnelles = classeMatieres.filter(m => m.type === 'optionnel');
 
   if (loading) return (
     <AdminLayout>
@@ -118,32 +182,17 @@ const EleveDetail = () => {
               <FileText size={14} className="mr-1.5"/> Fiche PDF
             </Button>
             {eleve.statut === 'en_attente' && (
-              <Button
-                variant="success"
-                size="sm"
-                loading={updating}
-                onClick={() => handleStatut('actif')}
-              >
+              <Button variant="success" size="sm" loading={updating} onClick={() => handleStatut('actif')}>
                 <CheckCircle size={14} className="mr-1.5"/> Valider
               </Button>
             )}
             {eleve.statut === 'actif' && (
-              <Button
-                variant="danger"
-                size="sm"
-                loading={updating}
-                onClick={() => handleStatut('inactif')}
-              >
+              <Button variant="danger" size="sm" loading={updating} onClick={() => handleStatut('inactif')}>
                 <XCircle size={14} className="mr-1.5"/> Désactiver
               </Button>
             )}
             {eleve.statut === 'inactif' && (
-              <Button
-                variant="success"
-                size="sm"
-                loading={updating}
-                onClick={() => handleStatut('actif')}
-              >
+              <Button variant="success" size="sm" loading={updating} onClick={() => handleStatut('actif')}>
                 <CheckCircle size={14} className="mr-1.5"/> Réactiver
               </Button>
             )}
@@ -179,6 +228,104 @@ const EleveDetail = () => {
           </div>
         </div>
 
+        {/* ── SECTION MATIÈRES ── */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+            <div className="flex items-center gap-2">
+              <BookOpen size={16} className="text-blue-600"/>
+              <h3 className="text-sm font-semibold text-gray-700">Matières suivies</h3>
+            </div>
+            <Button size="sm" loading={savingMatieres} onClick={handleSaveMatieres}>
+              <Save size={13} className="mr-1.5"/> Enregistrer
+            </Button>
+          </div>
+
+          <div className="p-5">
+            {loadingMatieres ? (
+              <div className="flex justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"/>
+              </div>
+            ) : classeMatieres.length === 0 ? (
+              <div className="text-center py-6">
+                <BookOpen size={32} className="mx-auto mb-2 text-gray-200"/>
+                <p className="text-sm text-gray-400">Aucune matière définie pour cette classe</p>
+                <p className="text-xs text-gray-300 mt-1">Ajoutez des matières depuis la page "Classes"</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+
+                {/* Matières obligatoires */}
+                {matieresobligatoires.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">
+                      Matières obligatoires
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {matieresobligatoires.map((mat) => (
+                        <label
+                          key={mat.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                            selectedMatieres.includes(mat.id)
+                              ? 'border-blue-300 bg-blue-50'
+                              : 'border-gray-200 bg-white hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedMatieres.includes(mat.id)}
+                            onChange={() => handleToggleMatiere(mat.id)}
+                            className="w-4 h-4 text-blue-600 rounded"
+                          />
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">{mat.nom}</p>
+                            <p className="text-xs text-gray-400">Coef. {mat.coefficient}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Matières optionnelles */}
+                {matieresOptionnelles.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-orange-500 uppercase tracking-wider mb-2">
+                      Matières optionnelles
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {matieresOptionnelles.map((mat) => (
+                        <label
+                          key={mat.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                            selectedMatieres.includes(mat.id)
+                              ? 'border-orange-300 bg-orange-50'
+                              : 'border-gray-200 bg-white hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedMatieres.includes(mat.id)}
+                            onChange={() => handleToggleMatiere(mat.id)}
+                            className="w-4 h-4 text-orange-500 rounded"
+                          />
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">{mat.nom}</p>
+                            <p className="text-xs text-gray-400">Coef. {mat.coefficient}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-400 mt-2">
+                  {selectedMatieres.length} matière(s) sélectionnée(s) — cliquez sur "Enregistrer" pour valider
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
           {/* Infos élève */}
@@ -205,7 +352,6 @@ const EleveDetail = () => {
               <InfoRow icon={MapPin} label="Ville"     value={eleve.parent_ville}/>
             </SectionCard>
 
-            {/* Tuteur si applicable */}
             {eleve.tuteur_nom && (
               <SectionCard title="Tuteur" icon={User}>
                 <InfoRow icon={User}   label="Nom"       value={eleve.tuteur_nom}/>
