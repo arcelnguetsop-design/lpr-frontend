@@ -2,43 +2,47 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import AdminLayout from '../../components/layout/AdminLayout';
 import api from '../../services/api';
-import { Search, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, FileText, ChevronDown, ChevronUp, Download } from 'lucide-react';
 
 const Bulletins = () => {
-  const [classes, setClasses]     = useState([]);
-  const [eleves, setEleves]       = useState([]);
-  const [loading, setLoading]     = useState(false);
+  const [classes, setClasses]               = useState([]);
+  const [eleves, setEleves]                 = useState([]);
+  const [loading, setLoading]               = useState(false);
   const [selectedClasse, setSelectedClasse] = useState('');
   const [selectedTrimestre, setSelectedTrimestre] = useState('1');
-  const [search, setSearch]       = useState('');
-  const [expanded, setExpanded]   = useState(null);
-  const [bulletin, setBulletin]   = useState(null);
+  const [search, setSearch]                 = useState('');
+  const [expanded, setExpanded]             = useState(null);
+  const [bulletin, setBulletin]             = useState(null);
   const [loadingBulletin, setLoadingBulletin] = useState(false);
 
-  // ── Chargement des classes ──────────────────────────────────────
+  // ── Chargement des classes ──────────────────────────────
   useEffect(() => {
     api.get('/classes')
       .then(r => setClasses(r.data.classes || r.data || []))
       .catch(() => setClasses([]));
   }, []);
 
-  // ── Chargement des élèves quand on change de classe ────────────
+  // ── Chargement des élèves quand on change de classe ────
   useEffect(() => {
     if (!selectedClasse) { setEleves([]); return; }
     setLoading(true);
-    api.get('/eleves/liste', { params: { classe_id: selectedClasse, statut: 'actif', limit: 100 } })
+    api.get('/eleves/liste', {
+      params: { classe_id: selectedClasse, statut: 'actif', limit: 100 },
+    })
       .then(r => setEleves(r.data.eleves || []))
       .catch(() => toast.error('Erreur chargement élèves'))
       .finally(() => setLoading(false));
   }, [selectedClasse]);
 
+  // ── Voir le bulletin d'un élève ─────────────────────────
   const handleViewBulletin = async (eleveId) => {
     if (expanded === eleveId) { setExpanded(null); setBulletin(null); return; }
     setExpanded(eleveId);
+    setBulletin(null);
     setLoadingBulletin(true);
     try {
       const res = await api.get(`/notes/eleves/${eleveId}/bulletin`, {
-        params: { trimestre: selectedTrimestre }
+        params: { trimestre: selectedTrimestre },
       });
       setBulletin(res.data);
     } catch {
@@ -48,6 +52,30 @@ const Bulletins = () => {
     }
   };
 
+  // ── Télécharger le bulletin PDF ─────────────────────────
+  const handleDownloadBulletin = async (e, eleveId, eleveNom) => {
+    e.stopPropagation();
+    try {
+      toast.info('Génération du PDF en cours...');
+      const response = await api.get(`/notes/eleves/${eleveId}/bulletin/pdf`, {
+        params: { trimestre: selectedTrimestre },
+        responseType: 'blob',
+      });
+      const url  = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href  = url;
+      link.setAttribute('download', `bulletin_${eleveNom}_T${selectedTrimestre}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Bulletin PDF téléchargé');
+    } catch {
+      toast.error('Erreur génération bulletin PDF');
+    }
+  };
+
+  // ── Couleur selon la moyenne ────────────────────────────
   const getMentionColor = (moyenne) => {
     if (!moyenne) return 'text-gray-400';
     const m = parseFloat(moyenne);
@@ -58,14 +86,18 @@ const Bulletins = () => {
     return 'text-red-500';
   };
 
+  // ── Mention selon la moyenne ────────────────────────────
   const getMention = (moyenne) => {
     if (!moyenne) return '—';
     const m = parseFloat(moyenne);
+    if (m >= 18) return 'Excellent';
     if (m >= 16) return 'Très bien';
     if (m >= 14) return 'Bien';
     if (m >= 12) return 'Assez bien';
     if (m >= 10) return 'Passable';
-    return 'Insuffisant';
+    if (m >= 8)  return 'Insuffisant';
+    if (m >= 5)  return 'Médiocre';
+    return 'Très mauvais';
   };
 
   const filtered = eleves.filter(e =>
@@ -76,27 +108,39 @@ const Bulletins = () => {
     <AdminLayout>
       <div className="space-y-5 max-w-5xl">
 
+        {/* En-tête */}
         <div>
           <h1 className="text-lg font-bold text-gray-800">Bulletins</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Consultez les bulletins de notes par classe et par trimestre
+            Consultez et téléchargez les bulletins de notes par classe et par trimestre
           </p>
         </div>
 
+        {/* Sélecteurs */}
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
           <div className="flex flex-wrap gap-3">
             <select
               value={selectedClasse}
-              onChange={(e) => { setSelectedClasse(e.target.value); setExpanded(null); setBulletin(null); }}
+              onChange={(e) => {
+                setSelectedClasse(e.target.value);
+                setExpanded(null);
+                setBulletin(null);
+              }}
               className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Choisir une classe</option>
-              {classes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+              {classes.map(c => (
+                <option key={c.id} value={c.id}>{c.nom}</option>
+              ))}
             </select>
 
             <select
               value={selectedTrimestre}
-              onChange={(e) => { setSelectedTrimestre(e.target.value); setExpanded(null); setBulletin(null); }}
+              onChange={(e) => {
+                setSelectedTrimestre(e.target.value);
+                setExpanded(null);
+                setBulletin(null);
+              }}
               className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="1">Trimestre 1</option>
@@ -119,6 +163,7 @@ const Bulletins = () => {
           </div>
         </div>
 
+        {/* Message guide */}
         {!selectedClasse && (
           <div className="text-center py-16 bg-white rounded-xl border border-gray-100 text-gray-400">
             <FileText size={40} className="mx-auto mb-3 opacity-30"/>
@@ -126,6 +171,7 @@ const Bulletins = () => {
           </div>
         )}
 
+        {/* Spinner chargement élèves */}
         {loading ? (
           <div className="flex items-center justify-center h-40">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"/>
@@ -134,11 +180,14 @@ const Bulletins = () => {
           <div className="space-y-2">
             {filtered.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
-                <p className="text-sm">Aucun élève dans cette classe</p>
+                <p className="text-sm">Aucun élève actif dans cette classe</p>
               </div>
             ) : filtered.map((eleve) => (
-              <div key={eleve.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-
+              <div
+                key={eleve.id}
+                className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden"
+              >
+                {/* Header élève — cliquer pour ouvrir/fermer */}
                 <div
                   className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
                   onClick={() => handleViewBulletin(eleve.id)}
@@ -157,11 +206,23 @@ const Bulletins = () => {
                       <p className="text-xs text-gray-400">{eleve.classe_nom}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+
+                  <div className="flex items-center gap-2">
+                    {/* Moyenne + bouton PDF — visibles quand bulletin ouvert */}
                     {expanded === eleve.id && bulletin && (
-                      <span className={`text-sm font-bold ${getMentionColor(bulletin.moyenne_generale)}`}>
-                        {bulletin.moyenne_generale ? `${bulletin.moyenne_generale}/20` : '—'}
-                      </span>
+                      <>
+                        <span className={`text-sm font-bold ${getMentionColor(bulletin.moyenne_generale)}`}>
+                          {bulletin.moyenne_generale ? `${bulletin.moyenne_generale}/20` : '—'}
+                        </span>
+                        <button
+                          onClick={(e) => handleDownloadBulletin(e, eleve.id, eleve.nom)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
+                          title="Télécharger bulletin PDF pour WhatsApp"
+                        >
+                          <Download size={13}/>
+                          PDF
+                        </button>
+                      </>
                     )}
                     {expanded === eleve.id
                       ? <ChevronUp size={16} className="text-gray-400"/>
@@ -170,17 +231,22 @@ const Bulletins = () => {
                   </div>
                 </div>
 
+                {/* Bulletin détaillé */}
                 {expanded === eleve.id && (
                   <div className="border-t border-gray-100 bg-gray-50 p-4">
                     {loadingBulletin ? (
-                      <div className="flex justify-center py-4">
+                      <div className="flex justify-center py-6">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"/>
                       </div>
                     ) : !bulletin ? null : (
-                      <div>
-                        <div className="bg-white rounded-xl p-4 mb-4 flex items-center justify-between border border-gray-100">
+                      <div className="space-y-4">
+
+                        {/* Résumé moyenne générale */}
+                        <div className="bg-white rounded-xl p-4 flex items-center justify-between border border-gray-100">
                           <div>
-                            <p className="text-xs text-gray-500">Moyenne générale — Trimestre {selectedTrimestre}</p>
+                            <p className="text-xs text-gray-500">
+                              Moyenne générale — Trimestre {selectedTrimestre}
+                            </p>
                             <p className={`text-3xl font-bold mt-1 ${getMentionColor(bulletin.moyenne_generale)}`}>
                               {bulletin.moyenne_generale ? `${bulletin.moyenne_generale}/20` : '—'}
                             </p>
@@ -189,11 +255,16 @@ const Bulletins = () => {
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs text-gray-500">{bulletin.eleve?.classe?.nom || eleve.classe_nom}</p>
-                            <p className="text-xs text-gray-400 mt-1">{bulletin.eleve?.annee_scolaire?.libelle}</p>
+                            <p className="text-xs text-gray-500">
+                              {bulletin.eleve?.classe?.nom || eleve.classe_nom}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {bulletin.eleve?.annee_scolaire?.libelle || '2025-2026'}
+                            </p>
                           </div>
                         </div>
 
+                        {/* Tableau matières */}
                         {bulletin.matieres.length === 0 ? (
                           <p className="text-center text-xs text-gray-400 py-4">
                             Aucune note enregistrée pour ce trimestre
@@ -203,24 +274,30 @@ const Bulletins = () => {
                             <table className="w-full text-sm">
                               <thead className="bg-gray-50 border-b border-gray-100">
                                 <tr>
-                                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Matière</th>
+                                  <th className="px-4 py-2.5 text-left   text-xs font-semibold text-gray-500 uppercase">Matière</th>
                                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Coef.</th>
                                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Notes</th>
-                                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Moy. coef.</th>
+                                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Moy×Coef</th>
                                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Moyenne</th>
-                                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Mention</th>
+                                  <th className="px-4 py-2.5 text-left   text-xs font-semibold text-gray-500 uppercase">Mention</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-50">
                                 {bulletin.matieres.map((mat, idx) => (
                                   <tr key={idx} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3 font-medium text-gray-700">{mat.matiere}</td>
-                                    <td className="px-4 py-3 text-center text-gray-500">{mat.coefficient}</td>
+                                    <td className="px-4 py-3 font-medium text-gray-700">
+                                      {mat.matiere}
+                                    </td>
+                                    <td className="px-4 py-3 text-center text-gray-500">
+                                      {mat.coefficient}
+                                    </td>
                                     <td className="px-4 py-3 text-center text-xs text-gray-500">
-                                      {mat.notes.length > 0 ? mat.notes.join(' / ') : '—'}
+                                      {mat.notes?.length > 0 ? mat.notes.join(' / ') : '—'}
                                     </td>
                                     <td className="px-4 py-3 text-center text-xs text-gray-600">
-                                      {mat.moyenne ? (parseFloat(mat.moyenne) * mat.coefficient).toFixed(2) : '—'}
+                                      {mat.moyenne
+                                        ? (parseFloat(mat.moyenne) * mat.coefficient).toFixed(2)
+                                        : '—'}
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                       <span className={`font-bold ${getMentionColor(mat.moyenne)}`}>
