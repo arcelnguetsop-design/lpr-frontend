@@ -15,15 +15,19 @@ const Bulletins = () => {
   const [bulletin, setBulletin]   = useState(null);
   const [loadingBulletin, setLoadingBulletin] = useState(false);
 
+  // ── Chargement des classes ──────────────────────────────────────
   useEffect(() => {
-    api.get('/classes').then(r => setClasses(r.data.classes)).catch(console.error);
+    api.get('/classes')
+      .then(r => setClasses(r.data.classes || r.data || []))
+      .catch(() => setClasses([]));
   }, []);
 
+  // ── Chargement des élèves quand on change de classe ────────────
   useEffect(() => {
     if (!selectedClasse) { setEleves([]); return; }
     setLoading(true);
     api.get('/eleves/liste', { params: { classe_id: selectedClasse, statut: 'actif', limit: 100 } })
-      .then(r => setEleves(r.data.eleves))
+      .then(r => setEleves(r.data.eleves || []))
       .catch(() => toast.error('Erreur chargement élèves'))
       .finally(() => setLoading(false));
   }, [selectedClasse]);
@@ -72,7 +76,6 @@ const Bulletins = () => {
     <AdminLayout>
       <div className="space-y-5 max-w-5xl">
 
-        {/* En-tête */}
         <div>
           <h1 className="text-lg font-bold text-gray-800">Bulletins</h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -80,7 +83,6 @@ const Bulletins = () => {
           </p>
         </div>
 
-        {/* Sélecteurs */}
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
           <div className="flex flex-wrap gap-3">
             <select
@@ -117,7 +119,6 @@ const Bulletins = () => {
           </div>
         </div>
 
-        {/* Guide */}
         {!selectedClasse && (
           <div className="text-center py-16 bg-white rounded-xl border border-gray-100 text-gray-400">
             <FileText size={40} className="mx-auto mb-3 opacity-30"/>
@@ -125,7 +126,6 @@ const Bulletins = () => {
           </div>
         )}
 
-        {/* Liste élèves */}
         {loading ? (
           <div className="flex items-center justify-center h-40">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"/>
@@ -139,7 +139,6 @@ const Bulletins = () => {
             ) : filtered.map((eleve) => (
               <div key={eleve.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
 
-                {/* Header élève */}
                 <div
                   className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
                   onClick={() => handleViewBulletin(eleve.id)}
@@ -171,7 +170,6 @@ const Bulletins = () => {
                   </div>
                 </div>
 
-                {/* Bulletin détaillé */}
                 {expanded === eleve.id && (
                   <div className="border-t border-gray-100 bg-gray-50 p-4">
                     {loadingBulletin ? (
@@ -180,7 +178,6 @@ const Bulletins = () => {
                       </div>
                     ) : !bulletin ? null : (
                       <div>
-                        {/* Moyenne générale */}
                         <div className="bg-white rounded-xl p-4 mb-4 flex items-center justify-between border border-gray-100">
                           <div>
                             <p className="text-xs text-gray-500">Moyenne générale — Trimestre {selectedTrimestre}</p>
@@ -192,12 +189,11 @@ const Bulletins = () => {
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs text-gray-500">{bulletin.eleve?.classe_nom}</p>
-                            <p className="text-xs text-gray-400 mt-1">{bulletin.eleve?.annee_scolaire}</p>
+                            <p className="text-xs text-gray-500">{bulletin.eleve?.classe?.nom || eleve.classe_nom}</p>
+                            <p className="text-xs text-gray-400 mt-1">{bulletin.eleve?.annee_scolaire?.libelle}</p>
                           </div>
                         </div>
 
-                        {/* Tableau des matières */}
                         {bulletin.matieres.length === 0 ? (
                           <p className="text-center text-xs text-gray-400 py-4">
                             Aucune note enregistrée pour ce trimestre
@@ -210,6 +206,7 @@ const Bulletins = () => {
                                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Matière</th>
                                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Coef.</th>
                                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Notes</th>
+                                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Moy. coef.</th>
                                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Moyenne</th>
                                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Mention</th>
                                 </tr>
@@ -221,6 +218,9 @@ const Bulletins = () => {
                                     <td className="px-4 py-3 text-center text-gray-500">{mat.coefficient}</td>
                                     <td className="px-4 py-3 text-center text-xs text-gray-500">
                                       {mat.notes.length > 0 ? mat.notes.join(' / ') : '—'}
+                                    </td>
+                                    <td className="px-4 py-3 text-center text-xs text-gray-600">
+                                      {mat.moyenne ? (parseFloat(mat.moyenne) * mat.coefficient).toFixed(2) : '—'}
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                       <span className={`font-bold ${getMentionColor(mat.moyenne)}`}>
