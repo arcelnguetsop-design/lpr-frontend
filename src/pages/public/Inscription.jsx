@@ -7,6 +7,26 @@ import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import { CheckCircle, Upload, User, Users, Shield, Camera, X } from 'lucide-react';
 
+// ── Cloudinary ───────────────────────────────────────────────────
+const CLOUDINARY_CLOUD  = 'dafre7kwe';
+const CLOUDINARY_PRESET = 'lpr_biblio_profiles';
+
+const uploadToCloudinary = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_PRESET);
+  formData.append('folder', 'lpr_eleves');
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
+    { method: 'POST', body: formData }
+  );
+
+  if (!response.ok) throw new Error('Erreur upload Cloudinary');
+  const data = await response.json();
+  return data.secure_url;
+};
+
 const StepIndicator = ({ current, total }) => (
   <div className="flex items-center justify-center gap-2 mb-8">
     {Array.from({ length: total }).map((_, i) => (
@@ -36,14 +56,15 @@ const SectionTitle = ({ icon: Icon, title, subtitle }) => (
 );
 
 const Inscription = () => {
-  const [step, setStep]               = useState(1);
-  const [classes, setClasses]         = useState([]);
-  const [hasTuteur, setHasTuteur]     = useState(false);
-  const [photoFile, setPhotoFile]     = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
-  const [loading, setLoading]         = useState(false);
-  const [success, setSuccess]         = useState(false);
-  const [showCamera, setShowCamera]   = useState(false);
+  const [step, setStep]                   = useState(1);
+  const [classes, setClasses]             = useState([]);
+  const [hasTuteur, setHasTuteur]         = useState(false);
+  const [photoFile, setPhotoFile]         = useState(null);
+  const [photoPreview, setPhotoPreview]   = useState(null);
+  const [loading, setLoading]             = useState(false);
+  const [success, setSuccess]             = useState(false);
+  const [showCamera, setShowCamera]       = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
@@ -52,10 +73,12 @@ const Inscription = () => {
   const { register, handleSubmit, formState: { errors }, trigger, getValues } = useForm();
 
   useEffect(() => {
-    api.get('/classes').then(r => setClasses(r.data.classes)).catch(console.error);
+    api.get('/classes')
+      .then(r => setClasses(r.data.classes || r.data || []))
+      .catch(console.error);
   }, []);
 
-  // Démarrer la caméra quand le modal s'ouvre
+  // Démarrer la caméra
   useEffect(() => {
     if (showCamera) {
       navigator.mediaDevices.getUserMedia({
@@ -63,12 +86,10 @@ const Inscription = () => {
       })
       .then((stream) => {
         streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+        if (videoRef.current) videoRef.current.srcObject = stream;
       })
       .catch(() => {
-        toast.error('Impossible d\'accéder à la caméra');
+        toast.error("Impossible d'accéder à la caméra");
         setShowCamera(false);
       });
     }
@@ -88,8 +109,7 @@ const Inscription = () => {
 
     canvas.width  = video.videoWidth;
     canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
+    canvas.getContext('2d').drawImage(video, 0, 0);
 
     canvas.toBlob((blob) => {
       const file = new File([blob], 'photo_eleve.jpg', { type: 'image/jpeg' });
@@ -97,15 +117,15 @@ const Inscription = () => {
       setPhotoPreview(URL.createObjectURL(blob));
       setShowCamera(false);
       stopCamera();
-      toast.success('Photo capturée avec succès !');
+      toast.success('Photo capturée !');
     }, 'image/jpeg', 0.9);
   };
 
   const handlePhoto = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Photo trop lourde — maximum 2 Mo');
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Photo trop lourde — maximum 5 Mo');
       return;
     }
     setPhotoFile(file);
@@ -128,11 +148,24 @@ const Inscription = () => {
 
     setLoading(true);
     try {
-      const photo_url = photoPreview || 'https://res.cloudinary.com/demo/image/upload/sample.jpg';
+      // ── Upload photo vers Cloudinary ──────────────────────────
+      setUploadingPhoto(true);
+      toast.info('Upload de la photo en cours...');
+      const photo_url = await uploadToCloudinary(photoFile);
+      setUploadingPhoto(false);
+      toast.success('Photo uploadée !');
+
+      // ── Soumettre l'inscription avec l'URL Cloudinary ─────────
       await eleveService.inscrire({ ...data, photo_url });
       setSuccess(true);
+
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Erreur lors de l\'inscription');
+      setUploadingPhoto(false);
+      if (err.message === 'Erreur upload Cloudinary') {
+        toast.error("Erreur upload photo — vérifiez votre connexion");
+      } else {
+        toast.error(err.response?.data?.error || "Erreur lors de l'inscription");
+      }
     } finally {
       setLoading(false);
     }
@@ -188,7 +221,11 @@ const Inscription = () => {
             {/* ── ÉTAPE 1 — ÉLÈVE ── */}
             {step === 1 && (
               <div>
-                <SectionTitle icon={User} title="Informations de l'élève" subtitle="Tous les champs marqués * sont obligatoires"/>
+                <SectionTitle
+                  icon={User}
+                  title="Informations de l'élève"
+                  subtitle="Tous les champs marqués * sont obligatoires"
+                />
 
                 {/* Photo */}
                 <div className="mb-5">
@@ -208,7 +245,6 @@ const Inscription = () => {
 
                     {/* Boutons */}
                     <div className="flex flex-col gap-2">
-                      {/* Import fichier */}
                       <label className="cursor-pointer">
                         <div className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-600">
                           <Upload size={14}/>
@@ -217,7 +253,6 @@ const Inscription = () => {
                         <input type="file" accept="image/*" onChange={handlePhoto} className="hidden"/>
                       </label>
 
-                      {/* Capture caméra */}
                       <button
                         type="button"
                         onClick={() => setShowCamera(true)}
@@ -227,7 +262,10 @@ const Inscription = () => {
                         Prendre une photo
                       </button>
 
-                      <p className="text-xs text-gray-400">JPG, PNG — max 2 Mo</p>
+                      {photoFile && (
+                        <p className="text-xs text-green-600 font-medium">✓ Photo prête</p>
+                      )}
+                      <p className="text-xs text-gray-400">JPG, PNG — max 5 Mo</p>
                     </div>
                   </div>
 
@@ -245,7 +283,6 @@ const Inscription = () => {
                             <X size={18} className="text-gray-500"/>
                           </button>
                         </div>
-
                         <div className="relative bg-black">
                           <video
                             ref={videoRef}
@@ -255,14 +292,11 @@ const Inscription = () => {
                             className="w-full"
                             style={{ maxHeight: '320px', objectFit: 'cover' }}
                           />
-                          {/* Guide portrait */}
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <div className="border-2 border-white/50 rounded-xl w-32 h-40"/>
                           </div>
                         </div>
-
                         <canvas ref={canvasRef} className="hidden"/>
-
                         <div className="p-4 flex gap-3">
                           <button
                             type="button"
@@ -316,7 +350,7 @@ const Inscription = () => {
                     register={register}
                     required
                     error={errors.etablissement_origine}
-                    placeholder="Lycée de Ngoa-Ekellé"
+                    placeholder="Lycée de Ngoa-Ekelé"
                     className="sm:col-span-2"
                   />
                 </div>
@@ -355,7 +389,6 @@ const Inscription = () => {
                       L'élève vit avec un tuteur (différent des parents)
                     </span>
                   </label>
-
                   {hasTuteur && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                       <Input label="Nom du tuteur" name="tuteur_nom" register={register} error={errors.tuteur_nom} placeholder="Nom du tuteur" className="sm:col-span-2"/>
@@ -367,12 +400,8 @@ const Inscription = () => {
                 </div>
 
                 <div className="flex justify-between mt-6">
-                  <Button type="button" variant="secondary" onClick={() => setStep(1)}>
-                    ← Retour
-                  </Button>
-                  <Button type="button" onClick={nextStep}>
-                    Suivant →
-                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setStep(1)}>← Retour</Button>
+                  <Button type="button" onClick={nextStep}>Suivant →</Button>
                 </div>
               </div>
             )}
@@ -397,22 +426,26 @@ const Inscription = () => {
                   {photoPreview && (
                     <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
                       <img src={photoPreview} alt="apercu" className="w-12 h-14 object-cover rounded-lg"/>
-                      <p className="text-sm text-gray-600">Photo ajoutée ✓</p>
+                      <div>
+                        <p className="text-sm text-gray-600 font-medium">Photo ajoutée ✓</p>
+                        <p className="text-xs text-gray-400">Sera uploadée vers Cloudinary à la soumission</p>
+                      </div>
                     </div>
                   )}
                 </div>
 
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-sm text-amber-700">
                   <p className="font-medium mb-1">⚠ Important</p>
-                  <p className="text-xs">En soumettant ce formulaire, votre dossier sera examiné par l'administration. Vous serez contacté(e) pour confirmation.</p>
+                  <p className="text-xs">
+                    En soumettant ce formulaire, votre dossier sera examiné par l'administration.
+                    Vous serez contacté(e) pour confirmation.
+                  </p>
                 </div>
 
                 <div className="flex justify-between">
-                  <Button type="button" variant="secondary" onClick={() => setStep(2)}>
-                    ← Retour
-                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setStep(2)}>← Retour</Button>
                   <Button type="submit" loading={loading} variant="success" size="lg">
-                    Soumettre l'inscription
+                    {uploadingPhoto ? 'Upload photo...' : "Soumettre l'inscription"}
                   </Button>
                 </div>
               </div>
