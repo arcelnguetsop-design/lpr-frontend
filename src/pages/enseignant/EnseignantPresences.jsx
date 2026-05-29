@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import EnseignantLayout from './EnseignantLayout';
 import api from '../../services/api';
+import { generateFeuilleAppelPDF } from '../../services/pdfService';
 
 const STATUTS = {
   present : { label: 'P',       color: 'bg-green-500 text-white',  ring: 'ring-green-500' },
@@ -83,13 +84,15 @@ const EnseignantPresences = () => {
   const savePresences = async () => {
     setSaving(true);
     try {
-      const data = eleves.map(e => ({
-        eleve_id  : e.id,
+      await api.post('/presences', {
+        classe_id : selectedClasse.id,
         matiere_id: selectedMatiere.id,
-        statut    : presences[e.id] || 'present',
-        date      : date,
-      }));
-      await api.post('/presences/saisir', { presences: data });
+        date_appel: date,
+        presences : eleves.map(e => ({
+          eleve_id: e.id,
+          statut  : presences[e.id] || 'present',
+        })),
+      });
       toast.success('Présences enregistrées ✓');
       // Reset
       setStep('classe');
@@ -100,6 +103,27 @@ const EnseignantPresences = () => {
       toast.error('Erreur enregistrement présences');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    try {
+      const user = JSON.parse(localStorage.getItem('lpr_enseignant_user') || '{}');
+      generateFeuilleAppelPDF({
+        classe_nom    : selectedClasse?.nom,
+        matiere_nom   : selectedMatiere?.nom,
+        date_appel    : date,
+        enseignant_nom: `${user.nom} ${user.prenom}`,
+        eleves        : eleves.map(e => ({
+          id    : e.id,
+          nom   : e.nom,
+          prenom: e.prenom,
+          statut: presences[e.id] || 'present',
+        })),
+      });
+      toast.success('PDF téléchargé ✓');
+    } catch {
+      toast.error('Erreur génération PDF');
     }
   };
 
@@ -303,13 +327,26 @@ const EnseignantPresences = () => {
 
         {/* Bouton sauvegarder */}
         {eleves.length > 0 && (
-          <button
-            onClick={savePresences}
-            disabled={saving}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors"
-          >
-            {saving ? 'Enregistrement...' : `✓ Enregistrer les présences (${eleves.length} élèves)`}
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={savePresences}
+              disabled={saving}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors"
+            >
+              {saving ? 'Enregistrement...' : `✓ Enregistrer les présences (${eleves.length} élèves)`}
+            </button>
+            <button
+              onClick={handleDownloadPDF}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Télécharger feuille d'appel PDF
+            </button>
+          </div>
         )}
       </div>
     </EnseignantLayout>
