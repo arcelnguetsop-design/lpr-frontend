@@ -84,7 +84,7 @@ const EnseignantPresences = () => {
   const savePresences = async () => {
     setSaving(true);
     try {
-      await api.post('/presences', {
+      await api.post('/appels', {
         classe_id : selectedClasse.id,
         matiere_id: selectedMatiere.id,
         date_appel: date,
